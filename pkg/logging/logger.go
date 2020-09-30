@@ -270,10 +270,14 @@ func (l *zapLogger) WithFields(fields ...Field) Logger {
 	for i, output := range l.outputs {
 		outputs[i] = output.WithFields(fields...).(*zapOutput)
 	}
+	children := make(map[string]*zapLogger)
+	for name, child := range l.children {
+		children[name] = child.WithFields(fields...).(*zapLogger)
+	}
 	return &zapLogger{
 		config:       l.config,
 		loggerConfig: l.loggerConfig,
-		children:     l.children,
+		children:     children,
 		outputs:      outputs,
 		mu:           l.mu,
 		level:        l.level,
