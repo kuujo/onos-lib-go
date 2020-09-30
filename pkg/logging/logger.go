@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"sync/atomic"
 )
 
 var root *zapLogger
@@ -36,7 +35,7 @@ func init() {
 
 // configure configures the loggers
 func configure(config Config) error {
-	rootLogger, err := newZapLogger(config, config.GetRootLogger())
+	rootLogger, err := newZapLogger(config, config.GetRootLogger(), EmptyLevel)
 	if err != nil {
 		return err
 	}
@@ -60,8 +59,8 @@ type Logger interface {
 	// GetLevel returns the logger's level
 	GetLevel() Level
 
-	// SetLevel sets the logger's level
-	SetLevel(level Level)
+	// SetLevel returns a new logger with an overridden level
+	SetLevel(level Level) Logger
 
 	// WithFields adds fields to the logger
 	WithFields(fields ...Field) Logger
@@ -98,7 +97,7 @@ type Logger interface {
 	Warnw(msg string, fields ...Field)
 }
 
-func newZapLogger(config Config, loggerConfig LoggerConfig) (*zapLogger, error) {
+func newZapLogger(config Config, loggerConfig LoggerConfig, defaultLevel Level) (*zapLogger, error) {
 	var outputs []*zapOutput
 	outputConfigs := loggerConfig.GetOutputs()
 	outputs = make([]*zapOutput, len(outputConfigs))
@@ -120,7 +119,6 @@ func newZapLogger(config Config, loggerConfig LoggerConfig) (*zapLogger, error) 
 	}
 
 	var level *Level
-	var defaultLevel *Level
 	if loggerConfig.Level != nil {
 		loggerLevel := loggerConfig.GetLevel()
 		level = &loggerLevel
@@ -132,9 +130,9 @@ func newZapLogger(config Config, loggerConfig LoggerConfig) (*zapLogger, error) 
 		children:     make(map[string]*zapLogger),
 		outputs:      outputs,
 		mu:           &sync.RWMutex{},
+		level:        level,
+		defaultLevel: defaultLevel,
 	}
-	logger.level.Store(level)
-	logger.defaultLevel.Store(defaultLevel)
 	return logger, nil
 }
 
@@ -145,8 +143,8 @@ type zapLogger struct {
 	children     map[string]*zapLogger
 	outputs      []*zapOutput
 	mu           *sync.RWMutex
-	level        atomic.Value
-	defaultLevel atomic.Value
+	level        *Level
+	defaultLevel Level
 }
 
 func (l *zapLogger) Name() string {
@@ -213,43 +211,57 @@ func (l *zapLogger) getChild(name string) (*zapLogger, error) {
 	}
 
 	// Create the child logger.
-	logger, err := newZapLogger(l.config, loggerConfig)
+	logger, err := newZapLogger(l.config, loggerConfig, l.GetLevel())
 	if err != nil {
 		return nil, err
 	}
 
 	// Set the default log level on the child.
-	logger.setDefaultLevel(l.GetLevel())
 	l.children[name] = logger
 	return logger, nil
 }
 
 func (l *zapLogger) GetLevel() Level {
-	level := l.level.Load().(*Level)
-	if level != nil {
-		return *level
+	if l.level != nil {
+		return *l.level
 	}
-
-	defaultLevel := l.defaultLevel.Load().(*Level)
-	if defaultLevel != nil {
-		return *defaultLevel
-	}
-	return EmptyLevel
+	return l.defaultLevel
 }
 
-func (l *zapLogger) SetLevel(level Level) {
-	l.level.Store(&level)
-	for _, child := range l.children {
-		child.setDefaultLevel(level)
+func (l *zapLogger) SetLevel(level Level) Logger {
+	children := make(map[string]*zapLogger)
+	for name, child := range l.children {
+		children[name] = child.setDefaultLevel(level)
+	}
+	return &zapLogger{
+		config:       l.config,
+		loggerConfig: l.loggerConfig,
+		children:     children,
+		outputs:      l.outputs,
+		mu:           l.mu,
+		level:        &level,
+		defaultLevel: l.defaultLevel,
 	}
 }
 
-func (l *zapLogger) setDefaultLevel(level Level) {
-	l.defaultLevel.Store(&level)
-	if l.level.Load().(*Level) == nil {
-		for _, child := range l.children {
-			child.setDefaultLevel(level)
+func (l *zapLogger) setDefaultLevel(level Level) *zapLogger {
+	var children map[string]*zapLogger
+	if l.level != nil {
+		children = l.children
+	} else {
+		children = make(map[string]*zapLogger)
+		for name, child := range l.children {
+			children[name] = child.setDefaultLevel(level)
 		}
+	}
+	return &zapLogger{
+		config:       l.config,
+		loggerConfig: l.loggerConfig,
+		children:     children,
+		outputs:      l.outputs,
+		mu:           l.mu,
+		level:        l.level,
+		defaultLevel: level,
 	}
 }
 

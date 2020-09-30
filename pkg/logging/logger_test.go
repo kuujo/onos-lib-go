@@ -82,27 +82,26 @@ func TestLoggerConfig(t *testing.T) {
 	logger.Warn("should be printed twice")
 
 	// The "test/2" logger level should be changed to DEBUG
-	logger = GetLogger("test/2")
-	logger.SetLevel(DebugLevel)
-	assert.Equal(t, DebugLevel, logger.GetLevel())
-	logger.Debugw("should be", Bool("printed", true))
-	logger.Infow("should be printed", Int("times", 2))
-	logger.Warn("should be printed twice")
+	parent := GetLogger("test/2").SetLevel(DebugLevel)
+	assert.Equal(t, DebugLevel, parent.GetLevel())
+	parent.Debugw("should be", Bool("printed", true))
+	parent.Infow("should be printed", Int("times", 2))
+	parent.Warn("should be printed twice")
 
 	// The "test/2/3" logger should not inherit the change to the "test/2" logger since its level has been explicitly set
-	logger = GetLogger("test/2/3")
-	assert.Equal(t, InfoLevel, logger.GetLevel())
-	logger.Debug("should not be printed")
-	logger.Info("should be printed twice")
-	logger.Warn("should be printed twice")
+	child := parent.GetLogger("3")
+	assert.Equal(t, InfoLevel, child.GetLevel())
+	child.Debug("should not be printed")
+	child.Info("should be printed twice")
+	child.Warn("should be printed twice")
 
 	// The "test/2/4" logger should inherit the change to the "test/2" logger since its level has not been explicitly set
 	// The "test/2/4" logger should not output DEBUG messages since the output level is explicitly set to WARN
-	logger = GetLogger("test/2/4")
-	assert.Equal(t, DebugLevel, logger.GetLevel())
-	logger.Debug("should be printed")
-	logger.Info("should be printed twice")
-	logger.Warn("should be printed twice")
+	child = parent.GetLogger("4")
+	assert.Equal(t, DebugLevel, child.GetLevel())
+	child.Debug("should be printed")
+	child.Info("should be printed twice")
+	child.Warn("should be printed twice")
 
 	// The "test/3" logger should be configured with INFO level
 	// The "test/3" logger should write to multiple outputs
