@@ -59,8 +59,8 @@ type Logger interface {
 	// GetLevel returns the logger's level
 	GetLevel() Level
 
-	// SetLevel returns a new logger with an overridden level
-	SetLevel(level Level) Logger
+	// WithLevel overrides the logger level
+	WithLevel(level Level) Logger
 
 	// WithFields adds fields to the logger
 	WithFields(fields ...Field) Logger
@@ -228,7 +228,7 @@ func (l *zapLogger) GetLevel() Level {
 	return l.defaultLevel
 }
 
-func (l *zapLogger) SetLevel(level Level) Logger {
+func (l *zapLogger) WithLevel(level Level) Logger {
 	children := make(map[string]*zapLogger)
 	for name, child := range l.children {
 		children[name] = child.setDefaultLevel(level)

@@ -82,7 +82,7 @@ func TestLoggerConfig(t *testing.T) {
 	logger.Warn("should be printed twice")
 
 	// The "test/2" logger level should be changed to DEBUG
-	parent := GetLogger("test/2").SetLevel(DebugLevel)
+	parent := GetLogger("test/2").WithLevel(DebugLevel)
 	assert.Equal(t, DebugLevel, parent.GetLevel())
 	parent.Debugw("should be", Bool("printed", true))
 	parent.Infow("should be printed", Int("times", 2))
