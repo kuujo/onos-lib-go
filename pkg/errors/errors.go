@@ -16,7 +16,7 @@ package errors
 
 import (
 	"fmt"
-	"github.com/atomix/go-client/pkg/client/errors"
+	"github.com/atomix/atomix-go-framework/pkg/atomix/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
